@@ -79,4 +79,40 @@ describe("Benchmark Suite & Target Repositories", () => {
     expect(content).toContain("task-01");
     expect(content).toContain("task-09");
   });
+
+  it("ABExperimentRunner should format comparative evaluation metrics cleanly", async () => {
+    const { ABExperimentRunner } = await import("../benchmarks/experiment-ab.ts");
+    const runner = new ABExperimentRunner();
+
+    const mockComparison = {
+      taskId: "task-01",
+      taskTitle: "Fix parameter parsing",
+      designA: {
+        status: "SUCCESS",
+        steps: 4,
+        durationSeconds: 15.2,
+        tokens: 4200,
+        verifiedPass: true,
+      },
+      designB: {
+        status: "SUCCESS",
+        steps: 6,
+        durationSeconds: 22.1,
+        tokens: 6800,
+        verifiedPass: false,
+      },
+      findings: "Design A successfully passed all tests, while Design B declared completion prematurely without verifying code correctness.",
+    };
+
+    // Test writing report
+    await (runner as any).writeReport(mockComparison);
+
+    const reportPath = path.resolve(__dirname, "../benchmarks/EXPERIMENT_AB.md");
+    const content = await fs.readFile(reportPath, "utf-8");
+
+    expect(content).toContain("Comparative A/B Evaluation Report");
+    expect(content).toContain("Design A (CodeForge)");
+    expect(content).toContain("Design B (Baseline)");
+    expect(content).toContain("Design A Superior");
+  });
 });

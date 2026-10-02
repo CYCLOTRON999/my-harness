@@ -16,6 +16,8 @@ export interface AgentRunOptions {
   testCommand?: string;
   tracesDir?: string;
   sessionId?: string;
+  disableRepoMap?: boolean;
+  skipVerificationGate?: boolean;
   onTurn?: (step: number, phase: string, detail: string) => void;
 }
 
@@ -55,8 +57,12 @@ export class AgentLoop {
     const loopDetector = new LoopDetector(3, 4);
 
     // Initial files & symbol architecture map
-    const mapper = new RepoMapper(options.repoRoot);
-    const repoMap = await mapper.buildMap();
+    let repoMapSection = "";
+    if (!options.disableRepoMap) {
+      const mapper = new RepoMapper(options.repoRoot);
+      const repoMap = await mapper.buildMap();
+      repoMapSection = `\nTarget Repository Architecture Map:\n${repoMap}\n`;
+    }
 
     const systemPrompt = `You are CodeForge, an autonomous repository-aware coding agent.
 You solve coding tasks by executing structured tools, applying targeted patches, and running tests.
@@ -85,10 +91,7 @@ Be concise. Do not waste tokens with conversational fluff.`;
       {
         role: "user",
         content: `Task: ${options.task}
-
-Target Repository Architecture Map:
-${repoMap}
-
+${repoMapSection}
 Inspect the files, plan the fix, apply targeted patches, run tests, and verify completion.`,
       },
     ];
@@ -123,8 +126,8 @@ Inspect the files, plan the fix, apply targeted patches, run tests, and verify c
       // If no tool calls, check if task is complete
       if (response.toolCalls.length === 0) {
         const modifiedFiles = this.ctx.rollback.getModifiedFiles();
-        if (verified && modifiedFiles.length > 0) {
-          const summary = response.content || "Task verified and completed successfully.";
+        if (options.skipVerificationGate || (verified && modifiedFiles.length > 0)) {
+          const summary = response.content || "Task completed.";
           tracer.recordStep({
             stepNumber: stepCount,
             phase: "STOP",
