@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build and distribution
+dist/
+build/
+*.tsbuildinfo
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Internal agent governance and planning files
+AGENTS.md
+RULES.md
+SKILLS.md
+GOAL.md
+PLAN.md
+CONTEXT.md
+DECISIONS.md
+ARCHITECTURE.md
+CODEFORGE_AGENTS.md
+
+# Keep project README
+!README.md
+
+# Test and coverage artifacts
+coverage/
+*.lcov
+.nyc_output/
+
+# Telemetry runtime traces (optional local runs)
+.codeforge/
+traces/

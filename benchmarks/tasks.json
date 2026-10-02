@@ -1,0 +1,159 @@
+{
+  "version": "1.0.0",
+  "benchmarkName": "InductionHarness-15-Benchmark",
+  "repositories": [
+    {
+      "id": "repo-a",
+      "name": "nano-router",
+      "language": "typescript",
+      "path": "benchmarks/test-repos/repo-a",
+      "testCommand": "npm test",
+      "lintCommand": "npm run lint"
+    },
+    {
+      "id": "repo-b",
+      "name": "state-flow",
+      "language": "python",
+      "path": "benchmarks/test-repos/repo-b",
+      "testCommand": "pytest",
+      "lintCommand": "flake8"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "task-01",
+      "repoId": "repo-a",
+      "category": "bug",
+      "title": "Fix parameter parsing for routes containing regex special characters",
+      "description": "When a route has parameters like '/users/:id+' or '/files/:name.ext', the regex compiler fails to escape dots and plus signs, resulting in regex compilation errors. Escape all static path segments before constructing the RegExp.",
+      "testTarget": "test/params.test.ts",
+      "maxSteps": 15
+    },
+    {
+      "id": "task-02",
+      "repoId": "repo-a",
+      "category": "feature",
+      "title": "Implement wildcard catch-all route support (*)",
+      "description": "Add support for defining wildcard routes using '*path' or '*' that capture all subsequent segments into a 'wildcard' parameter dictionary.",
+      "testTarget": "test/wildcard.test.ts",
+      "maxSteps": 15
+    },
+    {
+      "id": "task-03",
+      "repoId": "repo-a",
+      "category": "bug",
+      "title": "Normalize trailing slashes in route matching",
+      "description": "Requests to '/api/users/' fail to match routes defined as '/api/users'. Implement configurable trailing slash normalization so paths match regardless of trailing slash.",
+      "testTarget": "test/trailing-slash.test.ts",
+      "maxSteps": 12
+    },
+    {
+      "id": "task-04",
+      "repoId": "repo-a",
+      "category": "feature",
+      "title": "Add sequential middleware pipeline",
+      "description": "Implement a `router.use(middleware)` pipeline that executes middleware functions sequentially before the route handler is invoked, supporting `next()` continuation.",
+      "testTarget": "test/middleware.test.ts",
+      "maxSteps": 20
+    },
+    {
+      "id": "task-05",
+      "repoId": "repo-a",
+      "category": "refactor",
+      "title": "Extract URL parser into dedicated path-parser module",
+      "description": "The path segment parsing logic in `src/router.ts` is 150 lines long. Extract it cleanly into `src/path-parser.ts` with explicit type exports, maintaining full backward compatibility with existing tests.",
+      "testTarget": "test/router.test.ts",
+      "maxSteps": 15
+    },
+    {
+      "id": "task-06",
+      "repoId": "repo-a",
+      "category": "test",
+      "title": "Add unit tests for URL query string decoding edge cases",
+      "description": "Write comprehensive unit tests in `test/query.test.ts` covering encoded characters, arrays in query strings (`?ids=1&ids=2`), and empty keys.",
+      "testTarget": "test/query.test.ts",
+      "maxSteps": 10
+    },
+    {
+      "id": "task-07",
+      "repoId": "repo-a",
+      "category": "bug",
+      "title": "Fix method handler overwrite on shared path",
+      "description": "Registering `router.get('/items', h1)` and `router.post('/items', h2)` currently causes the second registration to overwrite the first method dictionary. Fix handler map indexing.",
+      "testTarget": "test/methods.test.ts",
+      "maxSteps": 12
+    },
+    {
+      "id": "task-08",
+      "repoId": "repo-a",
+      "category": "feature",
+      "title": "Implement router.group() for prefix scoping",
+      "description": "Add a `group(prefix: string, setup: (subRouter: Router) => void)` method that prefixes all registered sub-routes cleanly.",
+      "testTarget": "test/group.test.ts",
+      "maxSteps": 18
+    },
+    {
+      "id": "task-09",
+      "repoId": "repo-b",
+      "category": "bug",
+      "title": "Support None payload values in transition events",
+      "description": "Passing `payload={'user_id': None}` to `machine.trigger()` throws an unhandled `TypeError` inside payload validator. Handle `None` gracefully as a valid payload value.",
+      "testTarget": "tests/test_payloads.py",
+      "maxSteps": 12
+    },
+    {
+      "id": "task-10",
+      "repoId": "repo-b",
+      "category": "feature",
+      "title": "Add on_enter and on_exit transition lifecycle hooks",
+      "description": "Support callback functions attached to states that execute whenever a state is entered or exited during a successful transition.",
+      "testTarget": "tests/test_hooks.py",
+      "maxSteps": 18
+    },
+    {
+      "id": "task-11",
+      "repoId": "repo-b",
+      "category": "bug",
+      "title": "Raise custom CircularTransitionError on infinite transition loop",
+      "description": "When a guard callback triggers another transition creating an infinite cycle, the machine crashes with Python's `RecursionError`. Add a transition depth counter and raise `CircularTransitionError`.",
+      "testTarget": "tests/test_cycles.py",
+      "maxSteps": 15
+    },
+    {
+      "id": "task-12",
+      "repoId": "repo-b",
+      "category": "feature",
+      "title": "Export state machine definition to Mermaid diagram format",
+      "description": "Add a method `machine.to_mermaid() -> str` that generates a valid Mermaid `stateDiagram-v2` string representing all states and transition arrows.",
+      "testTarget": "tests/test_mermaid.py",
+      "maxSteps": 15
+    },
+    {
+      "id": "task-13",
+      "repoId": "repo-b",
+      "category": "refactor",
+      "title": "Refactor raw state dict to dataclass StateNode",
+      "description": "Refactor internal dictionary structures in `state_flow/machine.py` to use a typed `@dataclass class StateNode`, preserving all public API methods.",
+      "testTarget": "tests/test_core.py",
+      "maxSteps": 16
+    },
+    {
+      "id": "task-14",
+      "repoId": "repo-b",
+      "category": "test",
+      "title": "Add concurrency tests for transition triggers",
+      "description": "Add unit tests in `tests/test_concurrency.py` verifying that simultaneous calls to trigger transitions from multiple threads maintain deterministic state locks.",
+      "testTarget": "tests/test_concurrency.py",
+      "maxSteps": 12
+    },
+    {
+      "id": "task-15",
+      "repoId": "repo-b",
+      "category": "bug",
+      "title": "Clear transition history upon machine reset",
+      "description": "Calling `machine.reset()` resets the current state to initial state but fails to clear `machine.history`, leading to invalid audit trails. Ensure history list is reinitialized.",
+      "testTarget": "tests/test_reset.py",
+      "maxSteps": 10
+    }
+  ]
+}
