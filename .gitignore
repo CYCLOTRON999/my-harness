@@ -39,3 +39,9 @@ coverage/
 .codeforge/
 .inductionharness/
 traces/
+benchmarks/traces/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo

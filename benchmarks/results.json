@@ -1,0 +1,30 @@
+[
+  {
+    "taskId": "task-01",
+    "repoId": "repo-a",
+    "category": "bug",
+    "title": "Fix parameter parsing",
+    "status": "SUCCESS",
+    "stepCount": 4,
+    "durationSeconds": 15.2,
+    "tokens": {
+      "prompt": 4000,
+      "completion": 200,
+      "total": 4200
+    }
+  },
+  {
+    "taskId": "task-09",
+    "repoId": "repo-b",
+    "category": "bug",
+    "title": "Support None payload",
+    "status": "SUCCESS",
+    "stepCount": 3,
+    "durationSeconds": 11.5,
+    "tokens": {
+      "prompt": 3000,
+      "completion": 150,
+      "total": 3150
+    }
+  }
+]
