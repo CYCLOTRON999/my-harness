@@ -27,6 +27,7 @@ export const writeFileTool: AgentTool<typeof WriteFileSchema> = {
         return `File '${args.path}' already exists and overwrite is set to false.`;
       }
 
+      await ctx.rollback.snapshot(args.path);
       await fs.mkdir(path.dirname(fullPath), { recursive: true });
       await fs.writeFile(fullPath, args.content, "utf-8");
 

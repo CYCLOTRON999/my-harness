@@ -1,10 +1,12 @@
 import { z } from "zod";
 import type { SandboxJail } from "../sandbox/jail.ts";
 import type { ProcessExecutor } from "../sandbox/executor.ts";
+import type { RollbackManager } from "../patch/rollback.ts";
 
 export interface ToolExecutionContext {
   sandbox: SandboxJail;
   executor: ProcessExecutor;
+  rollback: RollbackManager;
 }
 
 export interface AnyAgentTool {

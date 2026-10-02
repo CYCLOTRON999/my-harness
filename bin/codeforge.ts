@@ -5,6 +5,7 @@ import pc from "picocolors";
 import { OpenRouterClient } from "../src/provider/client.ts";
 import { SandboxJail } from "../src/sandbox/jail.ts";
 import { ProcessExecutor } from "../src/sandbox/executor.ts";
+import { RollbackManager } from "../src/patch/rollback.ts";
 import { allTools } from "../src/tools/index.ts";
 import { AgentLoop } from "../src/engine/agent-loop.ts";
 
@@ -28,12 +29,13 @@ program
 
       const sandbox = new SandboxJail(options.repo);
       const executor = new ProcessExecutor(sandbox.getRoot());
+      const rollback = new RollbackManager(sandbox, executor);
       const client = new OpenRouterClient({
         apiKey: options.apiKey,
         model: options.model,
       });
 
-      const loop = new AgentLoop(client, allTools, { sandbox, executor });
+      const loop = new AgentLoop(client, allTools, { sandbox, executor, rollback });
 
       const result = await loop.run({
         task: options.task,

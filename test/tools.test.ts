@@ -11,16 +11,19 @@ import { listDirTool } from "../src/tools/list.ts";
 import { fileSearchTool } from "../src/tools/find.ts";
 import { grepSearchTool } from "../src/tools/grep.ts";
 import { runCommandTool } from "../src/tools/command.ts";
+import { RollbackManager } from "../src/patch/rollback.ts";
+import type { ToolExecutionContext } from "../src/tools/base.ts";
 
 describe("Structured Tool Suite", () => {
   let tempDir: string;
-  let ctx: { sandbox: SandboxJail; executor: ProcessExecutor };
+  let ctx: ToolExecutionContext;
 
   beforeAll(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "harness-tools-test-"));
     const sandbox = new SandboxJail(tempDir);
     const executor = new ProcessExecutor(tempDir);
-    ctx = { sandbox, executor };
+    const rollback = new RollbackManager(sandbox, executor);
+    ctx = { sandbox, executor, rollback };
 
     // Seed test files
     await fs.writeFile(
@@ -67,7 +70,7 @@ describe("Structured Tool Suite", () => {
       },
       ctx
     );
-    expect(patchRes).toContain("search_block not found");
+    expect(patchRes).toContain("was not found");
   });
 
   it("write_file should create new files and parent directories", async () => {

@@ -1,8 +1,8 @@
-import fs from "node:fs/promises";
 import type { OpenRouterClient } from "../provider/client.ts";
 import type { ChatMessage, TokenUsage } from "../provider/types.ts";
 import type { AnyAgentTool, ToolExecutionContext } from "../tools/base.ts";
 import { zodToJsonSchema } from "../tools/base.ts";
+import { RepoMapper } from "../context/repo-map.ts";
 
 export interface AgentRunOptions {
   task: string;
@@ -37,8 +37,9 @@ export class AgentLoop {
     let stepCount = 0;
     const tokenUsage: TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 
-    // Initial files overview
-    const initialFiles = await this.getQuickFileTree(options.repoRoot);
+    // Initial files & symbol architecture map
+    const mapper = new RepoMapper(options.repoRoot);
+    const repoMap = await mapper.buildMap();
 
     const systemPrompt = `You are CodeForge, an autonomous repository-aware coding agent.
 You solve coding tasks by executing structured tools, applying targeted patches, and running tests.
@@ -68,8 +69,8 @@ Be concise. Do not waste tokens with conversational fluff.`;
         role: "user",
         content: `Task: ${options.task}
 
-Target Repository Files:
-${initialFiles}
+Target Repository Architecture Map:
+${repoMap}
 
 Inspect the files, plan the fix, apply targeted patches, run tests, and verify completion.`,
       },
@@ -103,7 +104,8 @@ Inspect the files, plan the fix, apply targeted patches, run tests, and verify c
 
       // If no tool calls, check if task is complete
       if (response.toolCalls.length === 0) {
-        if (verified) {
+        const modifiedFiles = this.ctx.rollback.getModifiedFiles();
+        if (verified && modifiedFiles.length > 0) {
           return {
             status: "SUCCESS",
             stepCount,
@@ -113,11 +115,19 @@ Inspect the files, plan the fix, apply targeted patches, run tests, and verify c
           };
         }
 
-        // Remind model to run tests if it hasn't verified
-        messages.push({
-          role: "user",
-          content: "Verification required: You have not yet verified the fix by running tests. Please execute the test command via 'run_command'.",
-        });
+        if (modifiedFiles.length === 0) {
+          messages.push({
+            role: "user",
+            content:
+              "No code changes have been applied yet. Please inspect the relevant files, apply the required changes using 'apply_patch' or 'write_file', and then verify with 'run_command'.",
+          });
+        } else {
+          messages.push({
+            role: "user",
+            content:
+              "Verification required: Code changes were made, but you have not yet verified them by running the test suite. Please execute the test command via 'run_command'.",
+          });
+        }
         continue;
       }
 
@@ -135,8 +145,18 @@ Inspect the files, plan the fix, apply targeted patches, run tests, and verify c
             const parsed = tool.schema.parse(call.arguments);
             toolOutput = await tool.execute(parsed, this.ctx);
 
+            // Invalidate verification on new edits
+            if (call.name === "apply_patch" || call.name === "write_file") {
+              if (toolOutput.includes("Successfully")) {
+                verified = false;
+              }
+            }
+
+            // Mark verified only if tests pass after modifications
             if (call.name === "run_command" && toolOutput.includes("exit code 0")) {
-              verified = true;
+              if (this.ctx.rollback.getModifiedFiles().length > 0) {
+                verified = true;
+              }
             }
           } catch (err: unknown) {
             toolOutput = `Tool execution error: ${err instanceof Error ? err.message : String(err)}`;
@@ -188,27 +208,6 @@ Inspect the files, plan the fix, apply targeted patches, run tests, and verify c
       if (msg.role === "tool" && msg.content && msg.content.length > 300) {
         msg.content = msg.content.slice(0, 200) + "\n[... intermediate output pruned to conserve tokens ...]";
       }
-    }
-  }
-
-  private async getQuickFileTree(dir: string, depth = 0): Promise<string> {
-    if (depth > 2) return "";
-    try {
-      const entries = await fs.readdir(dir, { withFileTypes: true });
-      const items: string[] = [];
-      for (const entry of entries) {
-        if (entry.name.startsWith(".") || entry.name === "node_modules" || entry.name === "dist") {
-          continue;
-        }
-        if (entry.isDirectory()) {
-          items.push(`dir: ${entry.name}/`);
-        } else {
-          items.push(`file: ${entry.name}`);
-        }
-      }
-      return items.join("\n");
-    } catch {
-      return "[unable to list directory]";
     }
   }
 }
