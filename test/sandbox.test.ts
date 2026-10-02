@@ -71,4 +71,17 @@ describe("Output Truncator", () => {
     expect(truncated).toContain("Line number 200");
     expect(truncated).toContain("[... truncated 175 lines");
   });
+
+  it("should preserve critical error diagnostics located in the middle of long output", () => {
+    const lines = Array.from({ length: 150 }, (_, i) => `Passing step ${i + 1}`);
+    lines[75] = "AssertionError: expected 'success' to equal 'failed'";
+    lines[76] = "    at Context.<anonymous> (/repo/test.js:42:10)";
+    const content = lines.join("\n");
+
+    const truncated = truncateOutput(content, { headLines: 10, tailLines: 10 });
+    expect(truncated).toContain("AssertionError: expected 'success' to equal 'failed'");
+    expect(truncated).toContain("CRITICAL ERROR DIAGNOSTICS");
+    expect(truncated).toContain("Passing step 1");
+    expect(truncated).toContain("Passing step 150");
+  });
 });

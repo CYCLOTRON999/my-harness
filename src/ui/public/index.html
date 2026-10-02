@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CodeForge | Autonomous Coding Agent</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #080c14;
+      --bg-panel: rgba(15, 23, 42, 0.75);
+      --bg-card: rgba(30, 41, 59, 0.7);
+      --bg-input: #0f172a;
+      --border: rgba(51, 65, 85, 0.7);
+      --border-focus: #38bdf8;
+      --accent: #38bdf8;
+      --accent-glow: rgba(56, 189, 248, 0.15);
+      --accent-purple: #818cf8;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --green: #10b981;
+      --red: #ef4444;
+      --yellow: #f59e0b;
+      --blue: #3b82f6;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: radial-gradient(circle at 15% 15%, #0e172a 0%, var(--bg-dark) 100%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      background: rgba(8, 12, 20, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 50;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-badge {
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-purple) 100%);
+      color: #040711;
+      font-weight: 700;
+      font-size: 16px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      letter-spacing: 0.5px;
+      box-shadow: 0 0 16px var(--accent-glow);
+    }
+
+    .brand-title {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      color: #fff;
+    }
+
+    .brand-sub {
+      font-size: 12px;
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 12px;
+    }
+
+    .control-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .control-input {
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-size: 13px;
+      font-family: 'JetBrains Mono', monospace;
+      outline: none;
+      min-width: 240px;
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--green);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .main-layout {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 61px);
+      overflow: hidden;
+    }
+
+    /* Left Column: Chat & Prompting */
+    .chat-panel {
+      flex: 1.1;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      background: rgba(15, 23, 42, 0.4);
+    }
+
+    .messages-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .message-card {
+      max-width: 90%;
+      border-radius: 12px;
+      padding: 16px 20px;
+      font-size: 14px;
+      line-height: 1.6;
+      animation: fadeIn 0.25s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .user-message {
+      align-self: flex-end;
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.15) 0%, rgba(129, 140, 248, 0.15) 100%);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: #fff;
+    }
+
+    .agent-message {
+      align-self: flex-start;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .agent-message pre {
+      background: #090d16;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      margin: 10px 0;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+    }
+
+    .agent-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .prompt-footer {
+      padding: 16px 24px 20px;
+      background: rgba(8, 12, 20, 0.7);
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .chip-row {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+    }
+
+    .chip {
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 12px;
+      padding: 6px 12px;
+      border-radius: 16px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+    }
+
+    .chip:hover {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .input-box {
+      display: flex;
+      align-items: flex-end;
+      gap: 12px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 14px;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .input-box:focus-within {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 16px var(--accent-glow);
+    }
+
+    textarea.prompt-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-family: inherit;
+      font-size: 14px;
+      resize: none;
+      outline: none;
+      max-height: 120px;
+      min-height: 24px;
+      line-height: 1.5;
+    }
+
+    .send-btn {
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-purple) 100%);
+      color: #040711;
+      font-weight: 700;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 18px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: opacity 0.2s;
+    }
+
+    .send-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* Right Column: Execution Timeline & Inspector */
+    .inspector-panel {
+      flex: 0.9;
+      display: flex;
+      flex-direction: column;
+      background: rgba(11, 17, 32, 0.6);
+    }
+
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      background: rgba(8, 12, 20, 0.5);
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 12px;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      background: rgba(56, 189, 248, 0.05);
+    }
+
+    .tab-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 18px;
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* Step Timeline Items */
+    .timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .step-card {
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+
+    .phase-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    .phase-PLAN { background: rgba(59, 130, 246, 0.2); color: var(--blue); }
+    .phase-ACT { background: rgba(245, 158, 11, 0.2); color: var(--yellow); }
+    .phase-OBSERVE { background: rgba(16, 185, 129, 0.2); color: var(--green); }
+    .phase-STOP { background: rgba(239, 68, 68, 0.2); color: var(--red); }
+
+    .step-detail {
+      color: var(--text-muted);
+      word-break: break-all;
+      white-space: pre-wrap;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    /* Diff View */
+    .diff-line {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      padding: 2px 6px;
+      white-space: pre-wrap;
+    }
+
+    .diff-add { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+    .diff-del { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+    .diff-hdr { color: var(--accent); font-weight: 700; }
+
+    /* Telemetry View */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    .stat-val {
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+      margin-top: 4px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .stat-lbl {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="logo-badge">CodeForge</div>
+      <div>
+        <div class="brand-title">Autonomous Coding Agent</div>
+        <div class="brand-sub">NIT Rourkela AI Track 2026</div>
+      </div>
+    </div>
+
+    <div class="header-controls">
+      <div class="control-group">
+        <span class="control-label">Repo:</span>
+        <input id="repoInput" class="control-input" type="text" placeholder="/path/to/repository">
+      </div>
+      <div class="control-group">
+        <span class="control-label">Model:</span>
+        <input id="modelInput" class="control-input" type="text" value="deepseek/deepseek-chat" style="min-width: 160px;">
+      </div>
+      <div id="statusPill" class="status-pill">
+        <div class="status-dot"></div>
+        <span id="statusText">Ready</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="main-layout">
+    <!-- Chat Column -->
+    <div class="chat-panel">
+      <div id="messages" class="messages-container">
+        <div class="message-card agent-message">
+          <div class="agent-header">CodeForge Assistant</div>
+          Welcome! I am CodeForge, an autonomous repository-aware coding runtime. Enter a task below to inspect architecture, fix bugs, apply targeted diffs, or execute test verification.
+        </div>
+      </div>
+
+      <div class="prompt-footer">
+        <div class="chip-row">
+          <div class="chip" onclick="setPrompt('Inspect the repository structure, read key files, and give me a clear summary of what this project does.')">Summarize Repo</div>
+          <div class="chip" onclick="setPrompt('Run the repository test suite and fix any failing test cases.')">Run & Fix Tests</div>
+          <div class="chip" onclick="setPrompt('Identify any bugs, syntax errors, or unhandled edge cases in the codebase.')">Audit Code</div>
+          <div class="chip" onclick="setPrompt('Add comprehensive unit tests for uncovered functions and edge cases.')">Add Tests</div>
+        </div>
+
+        <div class="input-box">
+          <textarea id="promptInput" class="prompt-input" rows="1" placeholder="Type your instruction or prompt here... (Enter to send, Shift+Enter for newline)"></textarea>
+          <button id="sendBtn" class="send-btn" onclick="submitTask()">Send</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Inspector Column -->
+    <div class="inspector-panel">
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('timelineTab', this)">FSM Timeline</button>
+        <button class="tab-btn" onclick="switchTab('diffTab', this)">Changes & Diffs</button>
+        <button class="tab-btn" onclick="switchTab('telemetryTab', this)">Telemetry</button>
+      </div>
+
+      <!-- Tab 1: FSM Steps -->
+      <div id="timelineTab" class="tab-content active">
+        <div id="timelineList" class="timeline">
+          <div class="step-card" style="color: var(--text-dim);">
+            No active run. Steps will stream here live when an instruction executes.
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 2: Diffs -->
+      <div id="diffTab" class="tab-content">
+        <div id="diffContent" class="timeline">
+          <div class="step-card" style="color: var(--text-dim);">
+            No file modifications recorded yet.
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 3: Telemetry -->
+      <div id="telemetryTab" class="tab-content">
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-lbl">Total Steps</div>
+            <div id="statSteps" class="stat-val">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-lbl">Duration</div>
+            <div id="statDuration" class="stat-val">0.0s</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-lbl">Prompt Tokens</div>
+            <div id="statPromptTokens" class="stat-val">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-lbl">Completion Tokens</div>
+            <div id="statCompTokens" class="stat-val">0</div>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="stat-lbl" style="margin-bottom: 6px;">Active Session ID</div>
+          <div id="activeSessionId" style="color: var(--accent);">-</div>
+        </div>
+
+        <div class="step-card" style="margin-top: 12px;">
+          <div class="stat-lbl" style="margin-bottom: 6px;">Trace Log Path</div>
+          <div id="statTracePath" style="color: var(--text-muted); word-break: break-all;">-</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let activeSessionId = null;
+    let isRunning = false;
+
+    // Load initial config
+    fetch('/api/config')
+      .then(res => res.json())
+      .then(cfg => {
+        if (cfg.defaultRepo) document.getElementById('repoInput').value = cfg.defaultRepo;
+        if (cfg.defaultModel) document.getElementById('modelInput').value = cfg.defaultModel;
+      })
+      .catch(() => {});
+
+    function setPrompt(text) {
+      const input = document.getElementById('promptInput');
+      input.value = text;
+      input.focus();
+    }
+
+    function switchTab(tabId, btn) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(tabId).classList.add('active');
+    }
+
+    document.getElementById('promptInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        submitTask();
+      }
+    });
+
+    async function submitTask() {
+      if (isRunning) return;
+
+      const promptInput = document.getElementById('promptInput');
+      const task = promptInput.value.trim();
+      const repo = document.getElementById('repoInput').value.trim();
+      const model = document.getElementById('modelInput').value.trim();
+
+      if (!task) return;
+      if (!repo) {
+        alert('Please specify a target repository path.');
+        return;
+      }
+
+      isRunning = true;
+      document.getElementById('sendBtn').disabled = true;
+      setStatus('Running', 'var(--yellow)');
+
+      // Append user bubble
+      appendMessage('user', task);
+      promptInput.value = '';
+
+      // Clear previous timeline
+      document.getElementById('timelineList').innerHTML = '';
+
+      try {
+        const response = await fetch('/api/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            task,
+            repo,
+            model,
+            sessionId: activeSessionId
+          })
+        });
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split('\n\n');
+          buffer = parts.pop();
+
+          for (const chunk of parts) {
+            const lines = chunk.split('\n');
+            let event = '';
+            let dataStr = '';
+            for (const line of lines) {
+              if (line.startsWith('event: ')) event = line.slice(7).trim();
+              if (line.startsWith('data: ')) dataStr = line.slice(6).trim();
+            }
+
+            if (!dataStr) continue;
+            const data = JSON.parse(dataStr);
+
+            if (event === 'turn') {
+              renderTurn(data.step, data.phase, data.detail);
+            } else if (event === 'done') {
+              activeSessionId = data.sessionId;
+              appendMessage('agent', data.summary);
+              updateTelemetry(data);
+              renderDiffs(data.modifiedFiles);
+              setStatus(data.status === 'SUCCESS' ? 'Success' : 'Completed', data.status === 'SUCCESS' ? 'var(--green)' : 'var(--blue)');
+            } else if (event === 'error') {
+              appendMessage('agent', 'Error: ' + data.error);
+              setStatus('Error', 'var(--red)');
+            }
+          }
+        }
+      } catch (err) {
+        appendMessage('agent', 'Fatal error: ' + err.message);
+        setStatus('Error', 'var(--red)');
+      } finally {
+        isRunning = false;
+        document.getElementById('sendBtn').disabled = false;
+      }
+    }
+
+    function setStatus(text, color) {
+      const pill = document.getElementById('statusPill');
+      const label = document.getElementById('statusText');
+      label.innerText = text;
+      pill.style.color = color;
+      pill.style.borderColor = color;
+    }
+
+    function appendMessage(role, text) {
+      const messages = document.getElementById('messages');
+      const card = document.createElement('div');
+      card.className = `message-card ${role}-message`;
+
+      if (role === 'agent') {
+        const header = document.createElement('div');
+        header.className = 'agent-header';
+        header.innerText = 'CodeForge';
+        card.appendChild(header);
+      }
+
+      const content = document.createElement('div');
+      content.style.whiteSpace = 'pre-wrap';
+      content.innerText = text;
+      card.appendChild(content);
+
+      messages.appendChild(card);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function renderTurn(step, phase, detail) {
+      const list = document.getElementById('timelineList');
+      const item = document.createElement('div');
+      item.className = 'step-card';
+
+      item.innerHTML = `
+        <div class="step-header">
+          <span style="font-weight: 700; color: #fff;">Step ${step}</span>
+          <span class="phase-badge phase-${phase}">${phase}</span>
+        </div>
+        <div class="step-detail">${escapeHtml(detail)}</div>
+      `;
+
+      list.appendChild(item);
+      list.scrollTop = list.scrollHeight;
+    }
+
+    function updateTelemetry(data) {
+      document.getElementById('statSteps').innerText = data.stepCount;
+      document.getElementById('statDuration').innerText = (data.durationMs / 1000).toFixed(1) + 's';
+      document.getElementById('statPromptTokens').innerText = (data.totalTokens?.promptTokens || 0).toLocaleString();
+      document.getElementById('statCompTokens').innerText = (data.totalTokens?.completionTokens || 0).toLocaleString();
+      document.getElementById('activeSessionId').innerText = data.sessionId || '-';
+      document.getElementById('statTracePath').innerText = data.tracePath || '-';
+    }
+
+    function renderDiffs(files) {
+      const container = document.getElementById('diffContent');
+      if (!files || files.length === 0) {
+        container.innerHTML = '<div class="step-card" style="color: var(--text-dim);">No files were modified during this run.</div>';
+        return;
+      }
+
+      container.innerHTML = files.map(file => `
+        <div class="step-card">
+          <div class="diff-hdr">Modified: ${escapeHtml(file)}</div>
+        </div>
+      `).join('');
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+  </script>
+</body>
+</html>

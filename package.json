@@ -8,6 +8,7 @@
   },
   "scripts": {
     "start": "tsx bin/codeforge.ts",
+    "ui": "tsx src/ui/server.ts",
     "check": "tsc --noEmit",
     "test": "vitest run"
   },

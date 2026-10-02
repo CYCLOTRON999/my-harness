@@ -9,6 +9,7 @@ import { ProcessExecutor } from "../src/sandbox/executor.ts";
 import { RollbackManager } from "../src/patch/rollback.ts";
 import { allTools } from "../src/tools/index.ts";
 import { AgentLoop } from "../src/engine/agent-loop.ts";
+import { startUiServer } from "../src/ui/server.ts";
 
 function renderTurnDetail(phase: string, detail: string): void {
   const badge =
@@ -52,10 +53,21 @@ program
   .option("-k, --api-key <string>", "OpenRouter API Key (or set OPENROUTER_API_KEY env)")
   .option("--resume <sessionId>", "Resume a previous session from .inductionharness")
   .option("-i, --interactive", "Enter interactive mode (can be launched with or without an initial --task)")
+  .option("-u, --ui", "Launch interactive Web UI dashboard")
+  .option("-p, --port <number>", "Port for Web UI (default: 3333)", "3333")
   .action(async (options) => {
     try {
+      if (options.ui) {
+        startUiServer({
+          defaultRepo: options.repo,
+          port: parseInt(options.port, 10),
+          defaultModel: options.model,
+        });
+        return;
+      }
+
       if (!options.task && !options.interactive) {
-        console.error(pc.red("Error: Must provide either --task <description> or --interactive (-i).\n"));
+        console.error(pc.red("Error: Must provide either --task <description>, --interactive (-i), or --ui (-u).\n"));
         program.help();
         return;
       }
