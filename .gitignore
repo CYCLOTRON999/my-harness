@@ -37,4 +37,5 @@ coverage/
 
 # Telemetry runtime traces (optional local runs)
 .codeforge/
+.inductionharness/
 traces/

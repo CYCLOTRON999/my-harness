@@ -1,23 +1,32 @@
+import path from "node:path";
+import crypto from "node:crypto";
 import type { OpenRouterClient } from "../provider/client.ts";
 import type { ChatMessage, TokenUsage } from "../provider/types.ts";
 import type { AnyAgentTool, ToolExecutionContext } from "../tools/base.ts";
 import { zodToJsonSchema } from "../tools/base.ts";
 import { RepoMapper } from "../context/repo-map.ts";
+import { LoopDetector } from "./loop-detector.ts";
+import { RunTracer, type ToolExecutionRecord } from "../telemetry/tracer.ts";
+import { SessionStateManager } from "./state.ts";
 
 export interface AgentRunOptions {
   task: string;
   repoRoot: string;
   maxSteps?: number;
   testCommand?: string;
+  tracesDir?: string;
+  sessionId?: string;
   onTurn?: (step: number, phase: string, detail: string) => void;
 }
 
 export interface AgentRunResult {
-  status: "SUCCESS" | "FAILED" | "MAX_STEPS_EXCEEDED" | "ABORTED";
+  status: "SUCCESS" | "FAILED" | "MAX_STEPS_EXCEEDED" | "CYCLE_DETECTED" | "ABORTED";
   stepCount: number;
   totalTokens: TokenUsage;
   durationMs: number;
   summary: string;
+  tracePath?: string;
+  sessionId: string;
 }
 
 export class AgentLoop {
@@ -36,6 +45,14 @@ export class AgentLoop {
     const maxSteps = options.maxSteps ?? 15;
     let stepCount = 0;
     const tokenUsage: TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+    const sessionId = options.sessionId ?? crypto.randomBytes(4).toString("hex");
+
+    const tracesDirectory = options.tracesDir ?? path.join(options.repoRoot, "traces");
+    const tracer = new RunTracer(tracesDirectory);
+    tracer.startRun(options.task, options.repoRoot);
+
+    const stateManager = new SessionStateManager(options.repoRoot);
+    const loopDetector = new LoopDetector(3, 4);
 
     // Initial files & symbol architecture map
     const mapper = new RepoMapper(options.repoRoot);
@@ -96,6 +113,7 @@ Inspect the files, plan the fix, apply targeted patches, run tests, and verify c
       tokenUsage.promptTokens += response.usage.promptTokens;
       tokenUsage.completionTokens += response.usage.completionTokens;
       tokenUsage.totalTokens += response.usage.totalTokens;
+      tracer.updateTokenUsage(tokenUsage);
 
       if (response.content) {
         options.onTurn?.(stepCount, "THINK", response.content);
@@ -106,12 +124,33 @@ Inspect the files, plan the fix, apply targeted patches, run tests, and verify c
       if (response.toolCalls.length === 0) {
         const modifiedFiles = this.ctx.rollback.getModifiedFiles();
         if (verified && modifiedFiles.length > 0) {
+          const summary = response.content || "Task verified and completed successfully.";
+          tracer.recordStep({
+            stepNumber: stepCount,
+            phase: "STOP",
+            thought: summary,
+          });
+          const tracePath = await tracer.completeRun("SUCCESS", summary, modifiedFiles);
+          await stateManager.save({
+            sessionId,
+            task: options.task,
+            repoRoot: options.repoRoot,
+            stepCount,
+            status: "SUCCESS",
+            messages,
+            modifiedFiles,
+            totalTokens: tokenUsage,
+            updatedAt: new Date().toISOString(),
+          });
+
           return {
             status: "SUCCESS",
             stepCount,
             totalTokens: tokenUsage,
             durationMs: Date.now() - startTime,
-            summary: response.content || "Task verified and completed successfully.",
+            summary,
+            tracePath,
+            sessionId,
           };
         }
 
@@ -131,12 +170,63 @@ Inspect the files, plan the fix, apply targeted patches, run tests, and verify c
         continue;
       }
 
-      // Execute tool calls
+      // Check for cycles and execute tool calls
+      const toolRecords: ToolExecutionRecord[] = [];
+
       for (const call of response.toolCalls) {
+        // Cycle check
+        const loopCheck = loopDetector.recordCall(call.name, call.arguments);
+        if (loopCheck.status === "ABORT") {
+          const summary = loopCheck.message ?? "Loop cycle detected. Execution aborted.";
+          options.onTurn?.(stepCount, "STOP", summary);
+
+          tracer.recordStep({
+            stepNumber: stepCount,
+            phase: "STOP",
+            thought: summary,
+          });
+
+          const tracePath = await tracer.completeRun(
+            "CYCLE_DETECTED",
+            summary,
+            this.ctx.rollback.getModifiedFiles()
+          );
+
+          await stateManager.save({
+            sessionId,
+            task: options.task,
+            repoRoot: options.repoRoot,
+            stepCount,
+            status: "CYCLE_DETECTED",
+            messages,
+            modifiedFiles: this.ctx.rollback.getModifiedFiles(),
+            totalTokens: tokenUsage,
+            updatedAt: new Date().toISOString(),
+          });
+
+          return {
+            status: "CYCLE_DETECTED",
+            stepCount,
+            totalTokens: tokenUsage,
+            durationMs: Date.now() - startTime,
+            summary,
+            tracePath,
+            sessionId,
+          };
+        }
+
+        if (loopCheck.status === "WARN") {
+          messages.push({
+            role: "user",
+            content: loopCheck.message ?? "Loop warning: repeating identical tool calls.",
+          });
+        }
+
         options.onTurn?.(stepCount, "ACT", `${call.name}(${JSON.stringify(call.arguments)})`);
 
         const tool = this.tools.get(call.name);
         let toolOutput: string;
+        const toolStart = Date.now();
 
         if (!tool) {
           toolOutput = `Error: Unknown tool '${call.name}'. Available: ${Array.from(this.tools.keys()).join(", ")}`;
@@ -163,6 +253,14 @@ Inspect the files, plan the fix, apply targeted patches, run tests, and verify c
           }
         }
 
+        const toolDuration = Date.now() - toolStart;
+        toolRecords.push({
+          tool: call.name,
+          arguments: call.arguments,
+          output: toolOutput,
+          durationMs: toolDuration,
+        });
+
         options.onTurn?.(stepCount, "OBSERVE", toolOutput);
 
         messages.push({
@@ -187,14 +285,59 @@ Inspect the files, plan the fix, apply targeted patches, run tests, and verify c
           content: toolOutput,
         });
       }
+
+      tracer.recordStep({
+        stepNumber: stepCount,
+        phase: "ACT",
+        thought: response.content ?? undefined,
+        toolCalls: toolRecords,
+        tokens: {
+          promptTokens: response.usage.promptTokens,
+          completionTokens: response.usage.completionTokens,
+        },
+      });
+
+      // Periodic state checkpointing
+      await stateManager.save({
+        sessionId,
+        task: options.task,
+        repoRoot: options.repoRoot,
+        stepCount,
+        status: "IN_PROGRESS",
+        messages,
+        modifiedFiles: this.ctx.rollback.getModifiedFiles(),
+        totalTokens: tokenUsage,
+        updatedAt: new Date().toISOString(),
+      });
     }
+
+    const summary = `Halted: Step limit of ${maxSteps} reached.`;
+    const tracePath = await tracer.completeRun(
+      "MAX_STEPS_EXCEEDED",
+      summary,
+      this.ctx.rollback.getModifiedFiles()
+    );
+
+    await stateManager.save({
+      sessionId,
+      task: options.task,
+      repoRoot: options.repoRoot,
+      stepCount,
+      status: "MAX_STEPS_EXCEEDED",
+      messages,
+      modifiedFiles: this.ctx.rollback.getModifiedFiles(),
+      totalTokens: tokenUsage,
+      updatedAt: new Date().toISOString(),
+    });
 
     return {
       status: "MAX_STEPS_EXCEEDED",
       stepCount,
       totalTokens: tokenUsage,
       durationMs: Date.now() - startTime,
-      summary: `Halted: Step limit of ${maxSteps} reached.`,
+      summary,
+      tracePath,
+      sessionId,
     };
   }
 

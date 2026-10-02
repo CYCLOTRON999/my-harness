@@ -57,11 +57,15 @@ program
 
       console.log(pc.bold(pc.cyan("\n=== Execution Summary ===")));
       console.log(`Status: ${result.status === "SUCCESS" ? pc.green(result.status) : pc.red(result.status)}`);
+      console.log(`Session ID: ${result.sessionId}`);
       console.log(`Steps Taken: ${result.stepCount}`);
       console.log(`Duration: ${(result.durationMs / 1000).toFixed(1)}s`);
       console.log(
         `Token Usage: ${pc.yellow(result.totalTokens.totalTokens)} total (${result.totalTokens.promptTokens} prompt, ${result.totalTokens.completionTokens} completion)`
       );
+      if (result.tracePath) {
+        console.log(`Run Trace: ${pc.cyan(result.tracePath)}`);
+      }
       console.log(`Summary: ${result.summary}\n`);
 
       process.exit(result.status === "SUCCESS" ? 0 : 1);
