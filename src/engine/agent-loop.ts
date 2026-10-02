@@ -16,6 +16,7 @@ export interface AgentRunOptions {
   testCommand?: string;
   tracesDir?: string;
   sessionId?: string;
+  resumeSessionId?: string;
   disableRepoMap?: boolean;
   skipVerificationGate?: boolean;
   onTurn?: (step: number, phase: string, detail: string) => void;
@@ -47,13 +48,26 @@ export class AgentLoop {
     const maxSteps = options.maxSteps ?? 15;
     let stepCount = 0;
     const tokenUsage: TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
-    const sessionId = options.sessionId ?? crypto.randomBytes(4).toString("hex");
+    let sessionId = options.sessionId ?? crypto.randomBytes(4).toString("hex");
+    const stateManager = new SessionStateManager(options.repoRoot);
+    let messages: ChatMessage[] = [];
+
+    if (options.resumeSessionId) {
+      const saved = await stateManager.load(options.resumeSessionId);
+      if (saved) {
+        sessionId = saved.sessionId;
+        stepCount = saved.stepCount;
+        tokenUsage.promptTokens = saved.totalTokens.promptTokens;
+        tokenUsage.completionTokens = saved.totalTokens.completionTokens;
+        tokenUsage.totalTokens = saved.totalTokens.totalTokens;
+        messages = [...saved.messages, { role: "user", content: `Follow-up task: ${options.task}` }];
+      }
+    }
 
     const tracesDirectory = options.tracesDir ?? path.join(options.repoRoot, "traces");
     const tracer = new RunTracer(tracesDirectory);
     tracer.startRun(options.task, options.repoRoot);
 
-    const stateManager = new SessionStateManager(options.repoRoot);
     const loopDetector = new LoopDetector(3, 4);
 
     // Initial files & symbol architecture map
@@ -86,15 +100,17 @@ Rules:
 4. When all tests pass and the task is solved, output a final message stating task complete.
 Be concise. Do not waste tokens with conversational fluff.`;
 
-    const messages: ChatMessage[] = [
-      { role: "system", content: systemPrompt },
-      {
-        role: "user",
-        content: `Task: ${options.task}
+    if (messages.length === 0) {
+      messages = [
+        { role: "system", content: systemPrompt },
+        {
+          role: "user",
+          content: `Task: ${options.task}
 ${repoMapSection}
 Inspect the files, plan the fix, apply targeted patches, run tests, and verify completion.`,
-      },
-    ];
+        },
+      ];
+    }
 
     const toolDeclarations = Array.from(this.tools.values()).map((t) => ({
       name: t.name,
@@ -176,7 +192,16 @@ Inspect the files, plan the fix, apply targeted patches, run tests, and verify c
       // Check for cycles and execute tool calls
       const toolRecords: ToolExecutionRecord[] = [];
 
-      for (const call of response.toolCalls) {
+      // Filter duplicate identical tool calls within the same turn
+      const seenInTurn = new Set<string>();
+      const callsToExecute = response.toolCalls.filter((call) => {
+        const key = `${call.name}:${JSON.stringify(call.arguments)}`;
+        if (seenInTurn.has(key)) return false;
+        seenInTurn.add(key);
+        return true;
+      }).slice(0, 5); // Max 5 distinct tool calls per turn
+
+      for (const call of callsToExecute) {
         // Cycle check
         const loopCheck = loopDetector.recordCall(call.name, call.arguments);
         if (loopCheck.status === "ABORT") {

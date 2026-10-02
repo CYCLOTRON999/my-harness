@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import path from "node:path";
+import readline from "node:readline/promises";
 import { Command } from "commander";
 import pc from "picocolors";
 import { OpenRouterClient } from "../src/provider/client.ts";
@@ -8,6 +9,35 @@ import { ProcessExecutor } from "../src/sandbox/executor.ts";
 import { RollbackManager } from "../src/patch/rollback.ts";
 import { allTools } from "../src/tools/index.ts";
 import { AgentLoop } from "../src/engine/agent-loop.ts";
+
+function renderTurnDetail(phase: string, detail: string): void {
+  const badge =
+    phase === "PLAN"
+      ? pc.blue("[PLAN]")
+      : phase === "THINK"
+        ? pc.magenta("[THINK]")
+        : phase === "ACT"
+          ? pc.yellow("[ACT]")
+          : phase === "STOP"
+            ? pc.red("[STOP]")
+            : pc.green("[OBSERVE]");
+
+  // Color unified diff lines if output is a diff
+  if (phase === "OBSERVE" && (detail.includes("--- ") || detail.includes("+++ "))) {
+    const colored = detail
+      .split("\n")
+      .map((line) => {
+        if (line.startsWith("+") && !line.startsWith("+++")) return pc.green(line);
+        if (line.startsWith("-") && !line.startsWith("---")) return pc.red(line);
+        return line;
+      })
+      .join("\n");
+    console.log(`  ${badge}\n${colored}`);
+    return;
+  }
+
+  console.log(`  ${badge} ${detail}`);
+}
 
 const program = new Command();
 
@@ -20,12 +50,18 @@ program
   .option("-m, --model <string>", "OpenRouter model (default: deepseek/deepseek-chat)", "deepseek/deepseek-chat")
   .option("-s, --max-steps <number>", "Maximum agent steps", "15")
   .option("-k, --api-key <string>", "OpenRouter API Key (or set OPENROUTER_API_KEY env)")
+  .option("--resume <sessionId>", "Resume a previous session from .inductionharness")
+  .option("-i, --interactive", "Enter interactive follow-up mode after initial task execution")
   .action(async (options) => {
     try {
       console.log(pc.bold(pc.cyan("\n=== CodeForge Autonomous Coding Agent ===")));
       console.log(`${pc.bold("Task:")} ${options.task}`);
       console.log(`${pc.bold("Target Repo:")} ${path.resolve(options.repo)}`);
-      console.log(`${pc.bold("Model:")} ${options.model}\n`);
+      console.log(`${pc.bold("Model:")} ${options.model}`);
+      if (options.resume) {
+        console.log(`${pc.bold("Resuming Session:")} ${options.resume}`);
+      }
+      console.log("");
 
       const sandbox = new SandboxJail(options.repo);
       const executor = new ProcessExecutor(sandbox.getRoot());
@@ -37,23 +73,24 @@ program
 
       const loop = new AgentLoop(client, allTools, { sandbox, executor, rollback });
 
-      const result = await loop.run({
-        task: options.task,
-        repoRoot: sandbox.getRoot(),
-        maxSteps: parseInt(options.maxSteps, 10),
-        onTurn: (step, phase, detail) => {
-          const badge =
-            phase === "PLAN"
-              ? pc.blue("[PLAN]")
-              : phase === "THINK"
-                ? pc.magenta("[THINK]")
-                : phase === "ACT"
-                  ? pc.yellow("[ACT]")
-                  : pc.green("[OBSERVE]");
+      let currentTask = options.task;
+      let activeSessionId = options.resume;
 
-          console.log(`Step ${step} ${badge} ${detail}`);
-        },
-      });
+      const runTurn = async (taskText: string, resumeId?: string) => {
+        return await loop.run({
+          task: taskText,
+          repoRoot: sandbox.getRoot(),
+          maxSteps: parseInt(options.maxSteps, 10),
+          resumeSessionId: resumeId,
+          onTurn: (step, phase, detail) => {
+            console.log(pc.dim(`Step ${step}`));
+            renderTurnDetail(phase, detail);
+          },
+        });
+      };
+
+      let result = await runTurn(currentTask, activeSessionId);
+      activeSessionId = result.sessionId;
 
       console.log(pc.bold(pc.cyan("\n=== Execution Summary ===")));
       console.log(`Status: ${result.status === "SUCCESS" ? pc.green(result.status) : pc.red(result.status)}`);
@@ -67,6 +104,29 @@ program
         console.log(`Run Trace: ${pc.cyan(result.tracePath)}`);
       }
       console.log(`Summary: ${result.summary}\n`);
+
+      if (options.interactive) {
+        const rl = readline.createInterface({
+          input: process.stdin,
+          output: process.stdout,
+        });
+
+        while (true) {
+          const followUp = await rl.question(pc.bold(pc.magenta("codeforge > ")));
+          const trimmed = followUp.trim();
+          if (!trimmed || trimmed === "exit" || trimmed === "quit") {
+            console.log(pc.dim("Exiting interactive mode."));
+            rl.close();
+            break;
+          }
+
+          result = await runTurn(trimmed, activeSessionId);
+          console.log(pc.bold(pc.cyan("\n--- Turn Summary ---")));
+          console.log(`Status: ${result.status === "SUCCESS" ? pc.green(result.status) : pc.red(result.status)}`);
+          console.log(`Tokens: ${result.totalTokens.totalTokens} | Steps: ${result.stepCount}`);
+          console.log(`Summary: ${result.summary}\n`);
+        }
+      }
 
       process.exit(result.status === "SUCCESS" ? 0 : 1);
     } catch (err: unknown) {
