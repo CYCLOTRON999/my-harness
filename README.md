@@ -149,31 +149,64 @@ OPENROUTER_MODEL=deepseek/deepseek-chat
 
 ---
 
-## 8. CLI Usage
+## 8. CLI & Interactive Terminal (TUI)
 
-### Running an Autonomous Task
+### Interactive Terminal CLI (REPL Mode)
+Launch the interactive terminal interface directly from the console (modeled after modern AI coding CLIs):
+
 ```bash
-npx tsx bin/codeforge.ts --task "Add a multiply function to calculator.js" --repo "./test-fixtures/sample-repo"
+# Launch in current repository
+npm start
+
+# Or launch targeting an external repository
+npx tsx bin/codeforge.ts --repo "/Users/abhaysingh/Downloads/F1-Analysis"
+```
+
+This opens the CodeForge terminal prompt:
+```text
+=======================================================
+          CodeForge Interactive Terminal (CLI)        
+=======================================================
+Repository: /Users/abhaysingh/Downloads/F1-Analysis
+Model:      deepseek/deepseek-chat
+Commands: /help, /status, /diff, /rollback, /repo <path>, /clear, /exit
+
+codeforge ❯ 
+```
+
+Type prompts naturally (e.g. `codeforge ❯ Inspect this repo and explain its architecture`), and the agent will stream its thoughts, tool executions, and diffs live.
+
+#### Built-in Terminal Commands:
+- `/help` — Display list of available interactive commands.
+- `/status` — View active session ID, token odometer, and modified file list.
+- `/diff` — Show color-coded unified git diff of all uncommitted working tree changes.
+- `/rollback` — Atomically restore all files modified in the current session.
+- `/repo <path>` — Switch target repository on the fly without exiting.
+- `/model <name>` — Switch active OpenRouter model.
+- `/clear` — Clear terminal screen and reprint status banner.
+- `/exit`, `/quit` — Terminate interactive session.
+
+---
+
+### Single-Shot Autonomous Task Execution
+Execute a one-off task from the terminal with exit code verification:
+
+```bash
+npx tsx bin/codeforge.ts \
+  --task "Add multiply function to calculator.js and verify tests pass" \
+  --repo "./test-fixtures/sample-repo"
 ```
 
 CLI options:
-- `-t, --task <description>`: Natural language specification of the task (required).
-- `-r, --repo <path>`: Path to target repository (required).
+- `-t, --task <description>`: Natural language specification of the task (launches interactive terminal if omitted).
+- `-r, --repo <path>`: Path to target repository (default: current directory).
 - `-m, --model <model>`: OpenRouter model identifier (default: `deepseek/deepseek-chat`).
 - `-s, --max-steps <n>`: Maximum FSM loop turns (default: `15`).
 - `-k, --api-key <key>`: OpenRouter API key (overrides `OPENROUTER_API_KEY` env).
-- `-i, --interactive`: Enter interactive multi-turn REPL after the initial task execution.
+- `-i, --interactive`: Launch interactive terminal mode.
 - `--resume <sessionId>`: Resume a previous session from `.inductionharness/session_<id>.json`.
 
-### Interactive Multi-Turn Mode
-```bash
-npx tsx bin/codeforge.ts --task "Inspect the test suite" --repo "./test-fixtures/sample-repo" --interactive
-```
-
-### Resuming a Previous Session
-```bash
-npx tsx bin/codeforge.ts --task "Add divide function with zero check" --repo "./test-fixtures/sample-repo" --resume session_1740000000000_abc123
-```
+---
 
 ### Running the Benchmark Suite
 ```bash
@@ -191,7 +224,7 @@ npx tsx benchmarks/experiment-ab.ts --task task-01
 
 ### Running Unit Tests & Typecheck
 ```bash
-# Run complete Vitest suite (38 tests across 7 suites)
+# Run complete Vitest suite (39 tests across 7 suites)
 npm test
 
 # Run TypeScript typecheck
