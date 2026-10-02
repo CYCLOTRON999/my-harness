@@ -98,16 +98,24 @@ Rules:
 2. Use 'apply_patch' with exact existing lines as search_block.
 3. After making changes, ALWAYS run the test command to verify.
 4. When all tests pass and the task is solved, output a final message stating task complete.
+5. If the user prompt is an inspection, summary, review, or question where no code modifications are requested, output your complete answer directly and do not modify files or run tests.
+6. Never execute long-running or interactive server processes (such as 'streamlit run', 'flask run', 'npm start') via 'run_command', as they do not exit.
 Be concise. Do not waste tokens with conversational fluff.`;
 
+    const isReadOnly = this.isReadOnlyTask(options.task);
+
     if (messages.length === 0) {
+      const taskInstruction = isReadOnly
+        ? "Inspect the repository and provide a complete, clear answer to the user's request. Do not modify files unless explicitly requested."
+        : "Inspect the files, plan the fix, apply targeted patches, run tests, and verify completion.";
+
       messages = [
         { role: "system", content: systemPrompt },
         {
           role: "user",
           content: `Task: ${options.task}
 ${repoMapSection}
-Inspect the files, plan the fix, apply targeted patches, run tests, and verify completion.`,
+${taskInstruction}`,
         },
       ];
     }
@@ -119,6 +127,7 @@ Inspect the files, plan the fix, apply targeted patches, run tests, and verify c
     }));
 
     let verified = false;
+    let unmodifiedNudgeCount = 0;
 
     while (stepCount < maxSteps) {
       stepCount++;
@@ -142,8 +151,14 @@ Inspect the files, plan the fix, apply targeted patches, run tests, and verify c
       // If no tool calls, check if task is complete
       if (response.toolCalls.length === 0) {
         const modifiedFiles = this.ctx.rollback.getModifiedFiles();
-        if (options.skipVerificationGate || (verified && modifiedFiles.length > 0)) {
+        if (
+          options.skipVerificationGate ||
+          (verified && modifiedFiles.length > 0) ||
+          (isReadOnly && modifiedFiles.length === 0) ||
+          (unmodifiedNudgeCount >= 1 && modifiedFiles.length === 0)
+        ) {
           const summary = response.content || "Task completed.";
+          options.onTurn?.(stepCount, "STOP", summary);
           tracer.recordStep({
             stepNumber: stepCount,
             phase: "STOP",
@@ -174,10 +189,11 @@ Inspect the files, plan the fix, apply targeted patches, run tests, and verify c
         }
 
         if (modifiedFiles.length === 0) {
+          unmodifiedNudgeCount++;
           messages.push({
             role: "user",
             content:
-              "No code changes have been applied yet. Please inspect the relevant files, apply the required changes using 'apply_patch' or 'write_file', and then verify with 'run_command'.",
+              "No code changes have been applied yet. If this task requires code changes, please inspect the relevant files, apply the required changes using 'apply_patch' or 'write_file', and then verify with 'run_command'. If no code changes are required, state that the task is complete.",
           });
         } else {
           messages.push({
@@ -188,6 +204,8 @@ Inspect the files, plan the fix, apply targeted patches, run tests, and verify c
         }
         continue;
       }
+
+      unmodifiedNudgeCount = 0;
 
       // Check for cycles and execute tool calls
       const toolRecords: ToolExecutionRecord[] = [];
@@ -380,5 +398,56 @@ Inspect the files, plan the fix, apply targeted patches, run tests, and verify c
         msg.content = msg.content.slice(0, 200) + "\n[... intermediate output pruned to conserve tokens ...]";
       }
     }
+  }
+
+  private isReadOnlyTask(task: string): boolean {
+    const normalized = task.toLowerCase();
+    const queryKeywords = [
+      "inspect",
+      "summarize",
+      "summary",
+      "overview",
+      "explain",
+      "describe",
+      "what is",
+      "what does",
+      "how does",
+      "audit",
+      "review",
+      "analyze",
+      "find",
+      "search",
+      "explore",
+    ];
+    const editKeywords = [
+      "fix",
+      "add",
+      "implement",
+      "update",
+      "create",
+      "modify",
+      "patch",
+      "refactor",
+      "write",
+      "delete",
+      "remove",
+      "change",
+      "build",
+    ];
+
+    const hasQuery = queryKeywords.some((k) => {
+      const regex = new RegExp(`\\b${k}\\b`, "i");
+      return regex.test(normalized);
+    });
+    const hasEdit = editKeywords.some((k) => {
+      const regex = new RegExp(`\\b${k}\\b`, "i");
+      return regex.test(normalized);
+    });
+
+    if (hasQuery && !hasEdit) return true;
+    if (/\b(give me a summary|what is this|tell me about|how it works)\b/i.test(normalized)) {
+      return true;
+    }
+    return false;
   }
 }
