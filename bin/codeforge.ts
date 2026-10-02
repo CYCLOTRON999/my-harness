@@ -45,17 +45,27 @@ program
   .name("codeforge")
   .description("Autonomous repository-aware coding-agent runtime")
   .version("0.2.0")
-  .requiredOption("-t, --task <string>", "The coding task to perform")
-  .requiredOption("-r, --repo <path>", "Path to target repository")
+  .option("-t, --task <string>", "The coding task to perform")
+  .option("-r, --repo <path>", "Path to target repository (default: current directory)", ".")
   .option("-m, --model <string>", "OpenRouter model (default: deepseek/deepseek-chat)", "deepseek/deepseek-chat")
   .option("-s, --max-steps <number>", "Maximum agent steps", "15")
   .option("-k, --api-key <string>", "OpenRouter API Key (or set OPENROUTER_API_KEY env)")
   .option("--resume <sessionId>", "Resume a previous session from .inductionharness")
-  .option("-i, --interactive", "Enter interactive follow-up mode after initial task execution")
+  .option("-i, --interactive", "Enter interactive mode (can be launched with or without an initial --task)")
   .action(async (options) => {
     try {
+      if (!options.task && !options.interactive) {
+        console.error(pc.red("Error: Must provide either --task <description> or --interactive (-i).\n"));
+        program.help();
+        return;
+      }
+
       console.log(pc.bold(pc.cyan("\n=== CodeForge Autonomous Coding Agent ===")));
-      console.log(`${pc.bold("Task:")} ${options.task}`);
+      if (options.task) {
+        console.log(`${pc.bold("Initial Task:")} ${options.task}`);
+      } else {
+        console.log(`${pc.bold("Mode:")} Interactive REPL`);
+      }
       console.log(`${pc.bold("Target Repo:")} ${path.resolve(options.repo)}`);
       console.log(`${pc.bold("Model:")} ${options.model}`);
       if (options.resume) {
@@ -73,7 +83,6 @@ program
 
       const loop = new AgentLoop(client, allTools, { sandbox, executor, rollback });
 
-      let currentTask = options.task;
       let activeSessionId = options.resume;
 
       const runTurn = async (taskText: string, resumeId?: string) => {
@@ -89,27 +98,31 @@ program
         });
       };
 
-      let result = await runTurn(currentTask, activeSessionId);
-      activeSessionId = result.sessionId;
+      if (options.task) {
+        const result = await runTurn(options.task, activeSessionId);
+        activeSessionId = result.sessionId;
 
-      console.log(pc.bold(pc.cyan("\n=== Execution Summary ===")));
-      console.log(`Status: ${result.status === "SUCCESS" ? pc.green(result.status) : pc.red(result.status)}`);
-      console.log(`Session ID: ${result.sessionId}`);
-      console.log(`Steps Taken: ${result.stepCount}`);
-      console.log(`Duration: ${(result.durationMs / 1000).toFixed(1)}s`);
-      console.log(
-        `Token Usage: ${pc.yellow(result.totalTokens.totalTokens)} total (${result.totalTokens.promptTokens} prompt, ${result.totalTokens.completionTokens} completion)`
-      );
-      if (result.tracePath) {
-        console.log(`Run Trace: ${pc.cyan(result.tracePath)}`);
+        console.log(pc.bold(pc.cyan("\n=== Execution Summary ===")));
+        console.log(`Status: ${result.status === "SUCCESS" ? pc.green(result.status) : pc.red(result.status)}`);
+        console.log(`Session ID: ${result.sessionId}`);
+        console.log(`Steps Taken: ${result.stepCount}`);
+        console.log(`Duration: ${(result.durationMs / 1000).toFixed(1)}s`);
+        console.log(
+          `Token Usage: ${pc.yellow(result.totalTokens.totalTokens)} total (${result.totalTokens.promptTokens} prompt, ${result.totalTokens.completionTokens} completion)`
+        );
+        if (result.tracePath) {
+          console.log(`Run Trace: ${pc.cyan(result.tracePath)}`);
+        }
+        console.log(`Summary: ${result.summary}\n`);
       }
-      console.log(`Summary: ${result.summary}\n`);
 
       if (options.interactive) {
         const rl = readline.createInterface({
           input: process.stdin,
           output: process.stdout,
         });
+
+        console.log(pc.dim("Interactive session active. Enter prompts below. Type 'exit' or 'quit' to terminate.\n"));
 
         while (true) {
           const followUp = await rl.question(pc.bold(pc.magenta("codeforge > ")));
@@ -120,7 +133,8 @@ program
             break;
           }
 
-          result = await runTurn(trimmed, activeSessionId);
+          const result = await runTurn(trimmed, activeSessionId);
+          activeSessionId = result.sessionId;
           console.log(pc.bold(pc.cyan("\n--- Turn Summary ---")));
           console.log(`Status: ${result.status === "SUCCESS" ? pc.green(result.status) : pc.red(result.status)}`);
           console.log(`Tokens: ${result.totalTokens.totalTokens} | Steps: ${result.stepCount}`);
@@ -128,7 +142,7 @@ program
         }
       }
 
-      process.exit(result.status === "SUCCESS" ? 0 : 1);
+      process.exit(0);
     } catch (err: unknown) {
       console.error(pc.red(`\nFatal error: ${err instanceof Error ? err.message : String(err)}\n`));
       process.exit(1);
