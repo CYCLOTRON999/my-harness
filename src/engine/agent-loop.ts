@@ -44,9 +44,16 @@ export class AgentLoop {
 You solve coding tasks by executing structured tools, applying targeted patches, and running tests.
 
 Available tools:
+- list_dir: list files/directories with depth control.
+- file_search: find files matching a name/pattern.
+- grep_search: search regex or text across files.
 - read_file: inspect file contents with line ranges (conserve tokens!).
+- write_file: create a new file or write complete content.
 - apply_patch: targeted search-and-replace for specific code blocks.
-- run_command: execute shell commands (e.g. 'node test.js') inside the repo.
+- run_command: execute shell commands (e.g. tests or build) inside the repo.
+- git_status: view modified and untracked files.
+- git_diff: view working tree changes.
+- git_restore: revert uncommitted changes if an edit breaks tests.
 
 Rules:
 1. Always read relevant lines before patching.

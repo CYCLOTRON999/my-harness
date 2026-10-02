@@ -12,10 +12,12 @@ export class SandboxJail {
   private readonly rootPath: string;
 
   constructor(repoRoot: string) {
-    this.rootPath = path.resolve(repoRoot);
-    if (!fs.existsSync(this.rootPath)) {
-      throw new SandboxSecurityError(`Repository path does not exist: ${this.rootPath}`);
+    const absPath = path.resolve(repoRoot);
+    if (!fs.existsSync(absPath)) {
+      throw new SandboxSecurityError(`Repository path does not exist: ${absPath}`);
     }
+    // Resolve any OS symlinks (e.g. macOS /var -> /private/var) to canonical path
+    this.rootPath = fs.realpathSync(absPath);
   }
 
   public getRoot(): string {
@@ -23,8 +25,14 @@ export class SandboxJail {
   }
 
   public resolvePath(targetPath: string): string {
+    if (targetPath.includes("\0")) {
+      throw new SandboxSecurityError("Access denied: path contains null bytes.");
+    }
+
     const resolved = path.resolve(this.rootPath, targetPath);
-    if (!resolved.startsWith(this.rootPath)) {
+    const relative = path.relative(this.rootPath, resolved);
+
+    if (relative.startsWith("..") || path.isAbsolute(relative)) {
       throw new SandboxSecurityError(
         `Access denied: path '${targetPath}' resolves outside repository root '${this.rootPath}'`
       );
@@ -33,7 +41,8 @@ export class SandboxJail {
     if (fs.existsSync(resolved)) {
       try {
         const real = fs.realpathSync(resolved);
-        if (!real.startsWith(this.rootPath)) {
+        const realRelative = path.relative(this.rootPath, real);
+        if (realRelative.startsWith("..") || path.isAbsolute(realRelative)) {
           throw new SandboxSecurityError(
             `Access denied: symlink '${targetPath}' escapes repository root to '${real}'`
           );

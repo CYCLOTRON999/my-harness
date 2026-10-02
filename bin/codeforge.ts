@@ -4,9 +4,8 @@ import { Command } from "commander";
 import pc from "picocolors";
 import { OpenRouterClient } from "../src/provider/client.ts";
 import { SandboxJail } from "../src/sandbox/jail.ts";
-import { readFileTool } from "../src/tools/read.ts";
-import { applyPatchTool } from "../src/tools/patch.ts";
-import { runCommandTool } from "../src/tools/command.ts";
+import { ProcessExecutor } from "../src/sandbox/executor.ts";
+import { allTools } from "../src/tools/index.ts";
 import { AgentLoop } from "../src/engine/agent-loop.ts";
 
 const program = new Command();
@@ -14,7 +13,7 @@ const program = new Command();
 program
   .name("codeforge")
   .description("Autonomous repository-aware coding-agent runtime")
-  .version("0.1.0")
+  .version("0.2.0")
   .requiredOption("-t, --task <string>", "The coding task to perform")
   .requiredOption("-r, --repo <path>", "Path to target repository")
   .option("-m, --model <string>", "OpenRouter model (default: deepseek/deepseek-chat)", "deepseek/deepseek-chat")
@@ -28,13 +27,13 @@ program
       console.log(`${pc.bold("Model:")} ${options.model}\n`);
 
       const sandbox = new SandboxJail(options.repo);
+      const executor = new ProcessExecutor(sandbox.getRoot());
       const client = new OpenRouterClient({
         apiKey: options.apiKey,
         model: options.model,
       });
 
-      const tools = [readFileTool, applyPatchTool, runCommandTool];
-      const loop = new AgentLoop(client, tools, { sandbox });
+      const loop = new AgentLoop(client, allTools, { sandbox, executor });
 
       const result = await loop.run({
         task: options.task,

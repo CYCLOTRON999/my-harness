@@ -1,8 +1,10 @@
 import { z } from "zod";
 import type { SandboxJail } from "../sandbox/jail.ts";
+import type { ProcessExecutor } from "../sandbox/executor.ts";
 
 export interface ToolExecutionContext {
   sandbox: SandboxJail;
+  executor: ProcessExecutor;
 }
 
 export interface AnyAgentTool {
