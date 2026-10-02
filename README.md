@@ -156,10 +156,23 @@ npx tsx bin/codeforge.ts --task "Add a multiply function to calculator.js" --rep
 ```
 
 CLI options:
-- `--task <description>`: Natural language specification of the task (required).
-- `--repo <path>`: Path to target repository (default: current directory).
-- `--model <model>`: OpenRouter model identifier (default: `deepseek/deepseek-chat`).
-- `--max-steps <n>`: Maximum FSM loop turns (default: `15`).
+- `-t, --task <description>`: Natural language specification of the task (required).
+- `-r, --repo <path>`: Path to target repository (required).
+- `-m, --model <model>`: OpenRouter model identifier (default: `deepseek/deepseek-chat`).
+- `-s, --max-steps <n>`: Maximum FSM loop turns (default: `15`).
+- `-k, --api-key <key>`: OpenRouter API key (overrides `OPENROUTER_API_KEY` env).
+- `-i, --interactive`: Enter interactive multi-turn REPL after the initial task execution.
+- `--resume <sessionId>`: Resume a previous session from `.inductionharness/session_<id>.json`.
+
+### Interactive Multi-Turn Mode
+```bash
+npx tsx bin/codeforge.ts --task "Inspect the test suite" --repo "./test-fixtures/sample-repo" --interactive
+```
+
+### Resuming a Previous Session
+```bash
+npx tsx bin/codeforge.ts --task "Add divide function with zero check" --repo "./test-fixtures/sample-repo" --resume session_1740000000000_abc123
+```
 
 ### Running the Benchmark Suite
 ```bash
@@ -177,7 +190,7 @@ npx tsx benchmarks/experiment-ab.ts --task task-01
 
 ### Running Unit Tests & Typecheck
 ```bash
-# Run complete Vitest suite (37 tests across 7 suites)
+# Run complete Vitest suite (38 tests across 7 suites)
 npm test
 
 # Run TypeScript typecheck
