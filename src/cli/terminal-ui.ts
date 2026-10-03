@@ -2,12 +2,13 @@ import readline from "node:readline/promises";
 import path from "node:path";
 import fs from "node:fs";
 import pc from "picocolors";
-import { OpenRouterClient } from "../provider/client.ts";
+import { OpenRouterClient, loadEnvFile } from "../provider/client.ts";
 import { SandboxJail } from "../sandbox/jail.ts";
 import { ProcessExecutor } from "../sandbox/executor.ts";
 import { RollbackManager } from "../patch/rollback.ts";
 import { allTools } from "../tools/index.ts";
 import { AgentLoop } from "../engine/agent-loop.ts";
+import { renderCyberBanner, renderStatusCard, renderTurnDetail } from "./banner.ts";
 
 export interface TerminalUiOptions {
   repo?: string;
@@ -33,6 +34,7 @@ export class TerminalUi {
 
   constructor(options: TerminalUiOptions = {}) {
     this.repoRoot = path.resolve(options.repo || process.cwd());
+    loadEnvFile(this.repoRoot);
     this.model = options.model || process.env.OPENROUTER_MODEL || "deepseek/deepseek-chat";
     this.apiKey = options.apiKey || process.env.OPENROUTER_API_KEY;
     this.sessionId = options.resumeSessionId;
@@ -59,44 +61,30 @@ export class TerminalUi {
   }
 
   private renderBanner(): void {
-    console.log(pc.bold(pc.cyan("\n=======================================================")));
-    console.log(pc.bold(pc.cyan("          CodeForge Interactive Terminal (CLI)        ")));
-    console.log(pc.bold(pc.cyan("=======================================================")));
-    console.log(`${pc.bold("Repository:")} ${pc.green(this.repoRoot)}`);
-    console.log(`${pc.bold("Model:")}      ${pc.yellow(this.model)}`);
-    if (this.sessionId) {
-      console.log(`${pc.bold("Session ID:")} ${pc.magenta(this.sessionId)}`);
-    }
-    console.log(pc.dim("Commands: /help, /status, /diff, /rollback, /repo <path>, /clear, /exit\n"));
+    renderCyberBanner();
+    renderStatusCard({
+      repo: this.repoRoot,
+      model: this.model,
+      sessionId: this.sessionId,
+    });
+    console.log(
+      pc.dim("  Commands: ") +
+        pc.cyan("/help") +
+        pc.dim(" • ") +
+        pc.cyan("/status") +
+        pc.dim(" • ") +
+        pc.cyan("/diff") +
+        pc.dim(" • ") +
+        pc.cyan("/rollback") +
+        pc.dim(" • ") +
+        pc.cyan("/clear") +
+        pc.dim(" • ") +
+        pc.cyan("/exit\n")
+    );
   }
 
   private renderTurnDetail(phase: string, detail: string): void {
-    const badge =
-      phase === "PLAN"
-        ? pc.blue("[PLAN]")
-        : phase === "THINK"
-          ? pc.magenta("[THINK]")
-          : phase === "ACT"
-            ? pc.yellow("[ACT]")
-            : phase === "STOP"
-              ? pc.green("[STOP]")
-              : pc.dim("[OBSERVE]");
-
-    // Highlight unified diff output lines
-    if (phase === "OBSERVE" && (detail.includes("--- ") || detail.includes("+++ "))) {
-      const colored = detail
-        .split("\n")
-        .map((line) => {
-          if (line.startsWith("+") && !line.startsWith("+++")) return pc.green(line);
-          if (line.startsWith("-") && !line.startsWith("---")) return pc.red(line);
-          return line;
-        })
-        .join("\n");
-      console.log(`  ${badge}\n${colored}`);
-      return;
-    }
-
-    console.log(`  ${badge} ${detail}`);
+    renderTurnDetail(phase, detail);
   }
 
   private async handleCommand(cmd: string): Promise<boolean> {
@@ -208,10 +196,25 @@ export class TerminalUi {
 
     try {
       while (true) {
-        const input = await rl.question(pc.bold(pc.cyan("codeforge ❯ ")));
+        const input = await rl.question(pc.bold(pc.blue("claw") + pc.cyan(" ❯ ")));
         const trimmed = input.trim();
 
         if (!trimmed) continue;
+
+        if (trimmed === "exit" || trimmed === "quit") {
+          console.log(pc.dim("Exiting CodeForge. Goodbye.\n"));
+          break;
+        }
+
+        if (/^(npm\s+|npx\s+|cd\s+|node\s+|python\s+|python3\s+)/i.test(trimmed)) {
+          console.log(
+            pc.yellow(
+              `\nNotice: '${trimmed.split(" ")[0]}' is a shell command. You are currently inside the CodeForge interactive agent session.`
+            ) +
+            pc.dim("\nType '/exit' to return to your normal terminal, or enter an agent task/question.\n")
+          );
+          continue;
+        }
 
         if (trimmed.startsWith("/")) {
           const keepGoing = await this.handleCommand(trimmed);
@@ -225,14 +228,19 @@ export class TerminalUi {
         console.log("");
         const startTime = Date.now();
 
+        let lastLoggedTurn = 0;
         try {
           const result = await this.loop.run({
             task: trimmed,
             repoRoot: this.repoRoot,
             maxSteps: this.maxSteps,
             resumeSessionId: this.sessionId,
+            stream: true,
             onTurn: (step, phase, detail) => {
-              console.log(pc.dim(`Turn ${step}`));
+              if (step !== lastLoggedTurn) {
+                console.log(pc.dim(`\nTurn ${step}`));
+                lastLoggedTurn = step;
+              }
               this.renderTurnDetail(phase, detail);
             },
           });

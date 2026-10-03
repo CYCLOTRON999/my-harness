@@ -8,6 +8,7 @@ export interface ToolCall {
   id: string;
   name: string;
   arguments: Record<string, unknown>;
+  extra_content?: Record<string, unknown>;
 }
 
 export interface ChatMessage {
@@ -20,7 +21,9 @@ export interface ChatMessage {
       name: string;
       arguments: string;
     };
+    extra_content?: Record<string, unknown>;
   }>;
+  extra_content?: Record<string, unknown>;
   tool_call_id?: string;
   name?: string;
 }
@@ -33,6 +36,7 @@ export interface TokenUsage {
 
 export interface LlmResponse {
   content: string | null;
+  reasoning?: string | null;
   toolCalls: ToolCall[];
   usage: TokenUsage;
 }

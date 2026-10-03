@@ -92,5 +92,11 @@ class StringHelper:
     expect(ranked[0].relativePath).toBe("calculator.ts");
     expect(ranked[0].score).toBeGreaterThan(15);
     expect(ranked[0].matchedSymbols).toContain("function calculateTax");
+
+    const mapper = new RepoMapper(tempDir);
+    const targetedMap = mapper.buildTargetedMap(outlines, ranked, 1);
+    expect(targetedMap).toContain("calculator.ts");
+    expect(targetedMap).toContain("function calculateTax");
+    expect(targetedMap).toContain("Other Repository Files:\n  utils/formatter.py");
   });
 });

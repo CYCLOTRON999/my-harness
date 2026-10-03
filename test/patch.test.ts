@@ -64,6 +64,18 @@ describe("Diff Engine & Rollback Manager", () => {
       expect(res.fuzzyMatchUsed).toBe(true);
     });
 
+    it("should succeed when search block has copied line numbers from read_file", () => {
+      const original = "function calculate(x) {\n  const doubled = x * 2;\n  return doubled;\n}\n";
+      // Model copied line numbers from read_file output
+      const search = "2:   const doubled = x * 2;\n3:   return doubled;";
+      const replace = "2:   const tripled = x * 3;\n3:   return tripled;";
+
+      const res = applyTargetedPatch(original, search, replace);
+      expect(res.success).toBe(true);
+      expect(res.patchedContent).toContain("const tripled = x * 3;");
+      expect(res.fuzzyMatchUsed).toBe(true);
+    });
+
     it("should return error when search block is completely missing", () => {
       const original = "const a = 1;\n";
       const search = "const z = 999;";

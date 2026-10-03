@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import type { RankedFile } from "./selector.ts";
 
 export interface SymbolEntry {
   line: number;
@@ -39,9 +40,14 @@ const CODE_EXTENSIONS = new Set([
 export class RepoMapper {
   constructor(private readonly repoRoot: string) {}
 
-  public async buildMap(maxFiles = 50): Promise<string> {
+  public async getOutlines(maxFiles = 50): Promise<FileOutline[]> {
     const outlines: FileOutline[] = [];
     await this.scanDirectory(this.repoRoot, "", outlines, maxFiles);
+    return outlines;
+  }
+
+  public async buildMap(maxFiles = 50): Promise<string> {
+    const outlines = await this.getOutlines(maxFiles);
 
     if (outlines.length === 0) {
       return "[Repository is empty]";
@@ -52,6 +58,44 @@ export class RepoMapper {
       lines.push(`${outline.relativePath} (${outline.lineCount} lines)`);
       for (const sym of outline.symbols) {
         lines.push(`  L${sym.line}: ${sym.kind} ${sym.name}`);
+      }
+    }
+
+    return lines.join("\n");
+  }
+
+  public buildTargetedMap(outlines: FileOutline[], rankedFiles: RankedFile[], maxDetailed = 8): string {
+    if (outlines.length === 0) {
+      return "[Repository is empty]";
+    }
+
+    const rankedPaths = new Set(rankedFiles.slice(0, maxDetailed).map((r) => r.relativePath));
+    const lines: string[] = ["=== Target Repository Context ==="];
+
+    if (rankedFiles.length > 0) {
+      lines.push("\nRelevant Files & Key Symbols (Priority):");
+      for (const ranked of rankedFiles.slice(0, maxDetailed)) {
+        const outline = outlines.find((o) => o.relativePath === ranked.relativePath);
+        if (outline) {
+          lines.push(`* ${outline.relativePath} (${outline.lineCount} lines)`);
+          for (const sym of outline.symbols) {
+            lines.push(`    L${sym.line}: ${sym.kind} ${sym.name}`);
+          }
+        }
+      }
+    }
+
+    const otherFiles = outlines
+      .filter((o) => !rankedPaths.has(o.relativePath))
+      .map((o) => o.relativePath);
+
+    if (otherFiles.length > 0) {
+      lines.push("\nOther Repository Files:");
+      for (const f of otherFiles.slice(0, 25)) {
+        lines.push(`  ${f}`);
+      }
+      if (otherFiles.length > 25) {
+        lines.push(`  [... ${otherFiles.length - 25} more files]`);
       }
     }
 

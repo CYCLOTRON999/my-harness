@@ -104,6 +104,28 @@ describe("Structured Tool Suite", () => {
     expect(grepRes).toContain("nested/helper.ts:1: export const PI = 3.14159;");
   });
 
+  it("grep_search should match across irregular whitespace and commas in CSV/data files", async () => {
+    await fs.writeFile(
+      path.join(tempDir, "drivers.csv"),
+      "Pos,Driver\n1,Lewis  Hamilton \n2,Max  Verstappen\n1,Lewis  Hamilton \n"
+    );
+    const res = await grepSearchTool.execute({ query: "Lewis Hamilton", path: "drivers.csv" }, ctx);
+    expect(res).toContain("Lewis  Hamilton");
+    expect(res).toContain("Found 2 matching lines");
+
+    const commaRes = await grepSearchTool.execute({ query: "1, Lewis Hamilton", path: "drivers.csv" }, ctx);
+    expect(commaRes).toContain("Found 2 matching lines");
+  });
+
+  it("grep_search should report total match count when matches exceed max_results", async () => {
+    await fs.writeFile(
+      path.join(tempDir, "repeat.txt"),
+      "target\ntarget\ntarget\ntarget\ntarget\n"
+    );
+    const res = await grepSearchTool.execute({ query: "target", path: "repeat.txt", max_results: 2 }, ctx);
+    expect(res).toContain("Found 5 matching lines (showing first 2)");
+  });
+
   it("run_command should execute shell commands and capture output", async () => {
     const cmdRes = await runCommandTool.execute({ command: "node -e 'console.log(\"cmd tool ok\")'" }, ctx);
     expect(cmdRes).toContain("exit code 0");

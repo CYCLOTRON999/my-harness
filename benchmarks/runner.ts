@@ -4,12 +4,14 @@ import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import pc from "picocolors";
-import { OpenRouterClient } from "../src/provider/client.ts";
+import { OpenRouterClient, loadEnvFile } from "../src/provider/client.ts";
 import { SandboxJail } from "../src/sandbox/jail.ts";
 import { ProcessExecutor } from "../src/sandbox/executor.ts";
 import { RollbackManager } from "../src/patch/rollback.ts";
 import { allTools } from "../src/tools/index.ts";
 import { AgentLoop } from "../src/engine/agent-loop.ts";
+
+loadEnvFile();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -98,6 +100,7 @@ export class BenchmarkRunner {
         task: `${task.title}\n\nDetails: ${task.description}\nVerification command: ${repoMeta.testCommand}`,
         repoRoot: repoPath,
         maxSteps: task.maxSteps,
+        testCommand: repoMeta.testCommand,
         tracesDir,
         onTurn: (step, phase, detail) => {
           const badge =

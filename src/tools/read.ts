@@ -18,8 +18,10 @@ export const readFileTool: AgentTool<typeof ReadFileSchema> = {
     const lines = content.split("\n");
     const totalLines = lines.length;
 
+    const isDataFile = /\.(csv|tsv|jsonl|parquet|sqlite)$/i.test(args.path);
+    const defaultSpan = isDataFile ? 20 : 100;
     const start = Math.max(1, args.start_line ?? 1);
-    const end = Math.min(totalLines, args.end_line ?? start + 100);
+    const end = Math.min(totalLines, args.end_line ?? (start + defaultSpan - 1));
 
     if (start > totalLines) {
       return `File '${args.path}' only has ${totalLines} lines. Requested start_line ${start} is out of bounds.`;
@@ -30,7 +32,11 @@ export const readFileTool: AgentTool<typeof ReadFileSchema> = {
 
     let summary = `Showing lines ${start}-${end} of ${totalLines} in '${args.path}':\n\n${numbered}`;
     if (end < totalLines && args.end_line === undefined) {
-      summary += `\n\n[Note: ${totalLines - end} lines remaining. Specify start_line=${end + 1} to view more if needed.]`;
+      if (isDataFile) {
+        summary += `\n\n[Note: Data file preview capped at 20 rows to conserve tokens. Use grep_search to find specific records.]`;
+      } else {
+        summary += `\n\n[Note: ${totalLines - end} lines remaining. Specify start_line=${end + 1} to view more if needed.]`;
+      }
     }
 
     return summary;

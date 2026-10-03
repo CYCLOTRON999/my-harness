@@ -2,42 +2,16 @@
 import path from "node:path";
 import { Command } from "commander";
 import pc from "picocolors";
-import { OpenRouterClient } from "../src/provider/client.ts";
+import { OpenRouterClient, loadEnvFile } from "../src/provider/client.ts";
 import { SandboxJail } from "../src/sandbox/jail.ts";
 import { ProcessExecutor } from "../src/sandbox/executor.ts";
 import { RollbackManager } from "../src/patch/rollback.ts";
 import { allTools } from "../src/tools/index.ts";
 import { AgentLoop } from "../src/engine/agent-loop.ts";
 import { TerminalUi } from "../src/cli/terminal-ui.ts";
+import { renderCyberBanner, renderStatusCard, renderTurnDetail } from "../src/cli/banner.ts";
 
-function renderTurnDetail(phase: string, detail: string): void {
-  const badge =
-    phase === "PLAN"
-      ? pc.blue("[PLAN]")
-      : phase === "THINK"
-        ? pc.magenta("[THINK]")
-        : phase === "ACT"
-          ? pc.yellow("[ACT]")
-          : phase === "STOP"
-            ? pc.green("[STOP]")
-            : pc.dim("[OBSERVE]");
-
-  // Color unified diff lines if output is a diff
-  if (phase === "OBSERVE" && (detail.includes("--- ") || detail.includes("+++ "))) {
-    const colored = detail
-      .split("\n")
-      .map((line) => {
-        if (line.startsWith("+") && !line.startsWith("+++")) return pc.green(line);
-        if (line.startsWith("-") && !line.startsWith("---")) return pc.red(line);
-        return line;
-      })
-      .join("\n");
-    console.log(`  ${badge}\n${colored}`);
-    return;
-  }
-
-  console.log(`  ${badge} ${detail}`);
-}
+loadEnvFile();
 
 const program = new Command();
 
@@ -47,18 +21,23 @@ program
   .version("0.2.0")
   .option("-t, --task <string>", "Single-shot coding task (launches interactive terminal if omitted)")
   .option("-r, --repo <path>", "Path to target repository (default: current directory)", ".")
-  .option("-m, --model <string>", "OpenRouter model (default: deepseek/deepseek-chat)", "deepseek/deepseek-chat")
+  .option("-m, --model <string>", "OpenRouter model (default: env OPENROUTER_MODEL or deepseek/deepseek-chat)")
   .option("-s, --max-steps <number>", "Maximum agent steps per task", "15")
+  .option("-c, --test-cmd <string>", "Verification test command (e.g. 'npm test')")
   .option("-k, --api-key <string>", "OpenRouter API Key (or set OPENROUTER_API_KEY env)")
   .option("--resume <sessionId>", "Resume a previous session from .inductionharness")
   .option("-i, --interactive", "Force interactive terminal mode")
+  .option("--no-stream", "Disable real-time response streaming")
   .action(async (options) => {
     try {
+      loadEnvFile(options.repo);
+      const selectedModel = options.model || process.env.OPENROUTER_MODEL || "deepseek/deepseek-chat";
+
       // Default to Terminal UI if no task specified, or if interactive flag is present
       if (!options.task || options.interactive) {
         const ui = new TerminalUi({
           repo: options.repo,
-          model: options.model,
+          model: selectedModel,
           apiKey: options.apiKey,
           resumeSessionId: options.resume,
           maxSteps: parseInt(options.maxSteps, 10),
@@ -68,32 +47,38 @@ program
       }
 
       // Single-shot task execution
-      console.log(pc.bold(pc.cyan("\n=== CodeForge Autonomous Coding Agent ===")));
-      console.log(`${pc.bold("Task:")}        ${options.task}`);
-      console.log(`${pc.bold("Target Repo:")} ${path.resolve(options.repo)}`);
-      console.log(`${pc.bold("Model:")}       ${options.model}`);
-      if (options.resume) {
-        console.log(`${pc.bold("Resuming Session:")} ${options.resume}`);
-      }
-      console.log("");
+      renderCyberBanner();
+      renderStatusCard({
+        repo: path.resolve(options.repo),
+        model: selectedModel,
+        task: options.task,
+        testCmd: options.testCmd,
+        sessionId: options.resume,
+      });
 
       const sandbox = new SandboxJail(options.repo);
       const executor = new ProcessExecutor(sandbox.getRoot());
       const rollback = new RollbackManager(sandbox, executor);
       const client = new OpenRouterClient({
         apiKey: options.apiKey,
-        model: options.model,
+        model: selectedModel,
       });
 
       const loop = new AgentLoop(client, allTools, { sandbox, executor, rollback });
 
+      let lastLoggedStep = 0;
       const result = await loop.run({
         task: options.task,
         repoRoot: sandbox.getRoot(),
         maxSteps: parseInt(options.maxSteps, 10),
+        testCommand: options.testCmd,
         resumeSessionId: options.resume,
+        stream: options.stream !== false,
         onTurn: (step, phase, detail) => {
-          console.log(pc.dim(`Step ${step}`));
+          if (step !== lastLoggedStep) {
+            console.log(pc.dim(`\nStep ${step}`));
+            lastLoggedStep = step;
+          }
           renderTurnDetail(phase, detail);
         },
       });
