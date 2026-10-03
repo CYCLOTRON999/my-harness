@@ -143,8 +143,13 @@ npm install
 ### Environment Configuration
 Create a `.env` file in the project root:
 ```ini
+# Primary Provider (OpenRouter)
 OPENROUTER_API_KEY=sk-or-v1-your-key-here
-OPENROUTER_MODEL=deepseek/deepseek-chat
+OPENROUTER_MODEL=gemini-3.5-flash-lite
+
+# Fallback Provider (Google Gemini) - activates automatically on 429 rate limit or quota
+GEMINI_API_KEY=your-gemini-api-key-here
+GEMINI_MODEL=gemini-3.5-flash-lite
 ```
 
 ---
@@ -152,7 +157,7 @@ OPENROUTER_MODEL=deepseek/deepseek-chat
 ## 8. CLI & Interactive Terminal (TUI)
 
 ### Interactive Terminal CLI (REPL Mode)
-Launch the interactive terminal interface directly from the console (modeled after modern AI coding CLIs):
+Launch the interactive terminal interface directly from the console:
 
 ```bash
 # Launch in current repository
@@ -162,19 +167,29 @@ npm start
 npx tsx bin/codeforge.ts --repo "/Users/abhaysingh/Downloads/F1-Analysis"
 ```
 
-This opens the CodeForge terminal prompt:
+This renders the CodeForge Cyber Banner and session card:
 ```text
-=======================================================
-          CodeForge Interactive Terminal (CLI)        
-=======================================================
-Repository: /Users/abhaysingh/Downloads/F1-Analysis
-Model:      deepseek/deepseek-chat
-Commands: /help, /status, /diff, /rollback, /repo <path>, /clear, /exit
+  ╔═══[ ///// ]═══════════════════════════════════════════════════════[ ///// ]═══╗
+  ║    ██████╗ ███████╗██████╗ ███████╗ ██████╗ ██████╗  ██████╗ ███████╗     ║
+  ║   ██╔════╝██╔════╝██╔══██╗██╔════╝██╔═══██╗██╔══██╗██╔════╝ ██╔════╝     ║
+  ║   ██║     █████╗  ██████╔╝█████╗  ██║   ██║██████╔╝██║  ███╗█████╗       ║
+  ║   ██║     ██╔══╝  ██╔══██╗██╔══╝  ██║   ██║██╔══██╗██║   ██║██╔══╝       ║
+  ║   ╚██████╗███████╗██████╔╝███████╗╚██████╔╝██║  ██║╚██████╔╝███████╗     ║
+  ╚═══════════════[ AUTONOMOUS CODING AGENT // v0.2.0 ]════════════════╝
 
-codeforge ❯ 
+  ╭─────────────────────────────────────────────────────────────────────────────╮
+  │  Repository     /path/to/target/repository                                  │
+  │  Model          gemini-3.5-flash-lite                                       │
+  │  Runtime        Sandbox Jail • Real-time SSE • Turn-2 Compaction            │
+  │  Tools Active   file, grep, read, patch, write, test, git (10 tools)        │
+  ╰─────────────────────────────────────────────────────────────────────────────╯
+
+  Commands: /help • /status • /diff • /rollback • /clear • /exit
+
+claw ❯ 
 ```
 
-Type prompts naturally (e.g. `codeforge ❯ Inspect this repo and explain its architecture`), and the agent will stream its thoughts, tool executions, and diffs live.
+Type prompts naturally (e.g. `claw ❯ in which year did ferrari ended up with worst position?`), and the agent will stream its thoughts, tool executions, and diffs live.
 
 #### Built-in Terminal Commands:
 - `/help` — Display list of available interactive commands.
@@ -182,7 +197,7 @@ Type prompts naturally (e.g. `codeforge ❯ Inspect this repo and explain its ar
 - `/diff` — Show color-coded unified git diff of all uncommitted working tree changes.
 - `/rollback` — Atomically restore all files modified in the current session.
 - `/repo <path>` — Switch target repository on the fly without exiting.
-- `/model <name>` — Switch active OpenRouter model.
+- `/model <name>` — Switch active model dynamically.
 - `/clear` — Clear terminal screen and reprint status banner.
 - `/exit`, `/quit` — Terminate interactive session.
 
@@ -200,9 +215,9 @@ npx tsx bin/codeforge.ts \
 CLI options:
 - `-t, --task <description>`: Natural language specification of the task (launches interactive terminal if omitted).
 - `-r, --repo <path>`: Path to target repository (default: current directory).
-- `-m, --model <model>`: OpenRouter model identifier (default: `deepseek/deepseek-chat`).
+- `-m, --model <model>`: Model identifier (default: `gemini-3.5-flash-lite` or `deepseek/deepseek-chat`).
 - `-s, --max-steps <n>`: Maximum FSM loop turns (default: `15`).
-- `-k, --api-key <key>`: OpenRouter API key (overrides `OPENROUTER_API_KEY` env).
+- `-k, --api-key <key>`: API key (overrides environment variable).
 - `-i, --interactive`: Launch interactive terminal mode.
 - `--resume <sessionId>`: Resume a previous session from `.inductionharness/session_<id>.json`.
 
@@ -224,7 +239,7 @@ npx tsx benchmarks/experiment-ab.ts --task task-01
 
 ### Running Unit Tests & Typecheck
 ```bash
-# Run complete Vitest suite (39 tests across 7 suites)
+# Run complete Vitest suite (53 tests across 8 suites)
 npm test
 
 # Run TypeScript typecheck
