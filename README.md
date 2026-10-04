@@ -245,3 +245,13 @@ npm test
 # Run TypeScript typecheck
 npm run check
 ```
+
+---
+
+### Web Showcase & Submission Portal (Streamlit)
+Launch the interactive web showcase and benchmark simulator locally:
+```bash
+streamlit run streamlit_app.py
+```
+Or view the deployment on Streamlit Community Cloud.
+
